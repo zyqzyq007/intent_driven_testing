@@ -62,6 +62,7 @@ from pipeline.utils import get_logger
 from pipeline.step1_input_transform import extractor as step1
 from pipeline.step2_esg_construction import esg_runner as step2
 from pipeline.step3_intent_generation import generator as step3
+from pipeline.step4_test_generation import generator as step4
 
 logger = get_logger("pipeline")
 
@@ -93,13 +94,26 @@ def _print_summary(label: str, data) -> None:
         logger.info("  Total items  : %d", len(data))
         # Show first 3 items as sample
         for item in data[:3]:
-            logger.info(
-                "  • %s.%s  →  %s.%s",
-                item.get("test_class", "?"),
-                item.get("test_method", "?"),
-                item.get("focal_class", "?"),
-                item.get("focal_method", "?"),
-            )
+            # if it's from Step 1 or Step 3 (intents or pairs)
+            if "focal_class" in item and "focal_method" in item:
+                if "intent_type" in item:
+                    # Not actually happening here since intent is inside intents array
+                    pass
+                elif "generated_test_code" in item:
+                    logger.info(
+                        "  • Generated test for %s.%s (Length: %d chars)",
+                        item.get("focal_class", "?"),
+                        item.get("focal_method", "?"),
+                        len(item.get("generated_test_code", ""))
+                    )
+                else:
+                    logger.info(
+                        "  • %s.%s  →  %s.%s",
+                        item.get("test_class", "?"),
+                        item.get("test_method", "?"),
+                        item.get("focal_class", "?"),
+                        item.get("focal_method", "?"),
+                    )
         if len(data) > 3:
             logger.info("  … and %d more", len(data) - 3)
     elif isinstance(data, dict):
@@ -136,9 +150,12 @@ def main() -> int:
         help=f"Root output directory (default: {DEFAULT_OUTPUT})",
     )
     parser.add_argument(
-        "--steps", type=str, default="123",
-        choices=["1", "2", "3", "12", "23", "123"],
-        help="Which steps to run: '1'=extraction, '2'=ESG, '3'=intent generation; combine digits to run multiple (default: 123)",
+        "--steps", type=str, default="1234",
+        help="Which steps to run: '1'=extraction, '2'=ESG, '3'=intent generation, '4'=test generation; combine digits to run multiple (default: 1234)",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=0,
+        help="Limit the number of records processed in Step 4 (useful for API testing)",
     )
     parser.add_argument(
         "--no-reuse", action="store_true",
@@ -213,6 +230,23 @@ def main() -> int:
             logger.error("Step 3 failed.")
             return 1
         _print_summary("Step 3 Result – Generated Intents", intents)
+
+    # ── Step 4: Test Case Generation ─────────────────────────────────────────
+    if "4" in args.steps:
+        pairs_out = _pairs_output(project_root, output_root)
+        intents_out = _esg_output_dir(project_root, output_root) / "intents.json"
+        tests_out = _esg_output_dir(project_root, output_root) / "generated_tests.json"
+
+        generated_tests = step4.run(
+            intents_path=intents_out,
+            pairs_path=pairs_out,
+            output_path=tests_out,
+            limit=args.limit,
+        )
+        if generated_tests is None:
+            logger.error("Step 4 failed.")
+            return 1
+        _print_summary("Step 4 Result – Generated Tests", generated_tests)
 
     logger.info("Pipeline completed successfully ✓")
     return 0

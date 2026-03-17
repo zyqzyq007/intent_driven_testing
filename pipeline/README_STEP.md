@@ -1,6 +1,6 @@
-# Intent-Driven Testing Pipeline (Step 1 / 2 / 3)
+# Intent-Driven Testing Pipeline (Step 1 to 4)
 
-本文档详细说明当前 `intent_driven_testing` 项目中，前 3 个步骤（输入转换、ESG 构建、意图生成）的**实现方式**、**数据契约**、**关键算法**与**维护建议**。
+本文档详细说明当前 `intent_driven_testing` 项目中，前 4 个步骤（输入转换、ESG 构建、意图生成、测试用例生成）的**实现方式**、**数据契约**、**关键算法**与**维护建议**。
 
 ---
 
@@ -11,12 +11,14 @@
 - Step 1：`pipeline/step1_input_transform/extractor.py`
 - Step 2：`pipeline/step2_esg_construction/esg_runner.py`
 - Step 3：`pipeline/step3_intent_generation/*`
+- Step 4：`pipeline/step4_test_generation/*`
 
 核心数据流：
 
 1. Step 1 读取 Java 项目源码，输出 `pairs.json`
 2. Step 2 调用 Java ESG 分析器，输出 `esg_graph.json`（及 `spark_esg.dot`）
 3. Step 3 融合 `pairs.json + esg_graph.json`，输出 `intents.json`
+4. Step 4 融合 `intents.json + pairs.json`，构建完整上下文 Prompt 并调用 LLM 生成测试代码，输出 `generated_tests.json`
 
 ---
 
@@ -47,6 +49,12 @@
 
 - `pipeline/step3_intent_generation/generator.py`  
   Step 3 主流程：extract slice → resolve context → build intents → save。
+
+- `pipeline/step4_test_generation/prompt_builder.py`  
+  基于提取的意图和上下文代码，构造符合大模型（LLM）输入的结构化 GWT 提示词。
+
+- `pipeline/step4_test_generation/generator.py`  
+  Step 4 主流程：读取意图 → 检索相似用例 (Few-Shot) → 构建 Prompt → 调用 DeepSeek API 生成测试代码。
 
 ### 2.2 Java ESG 模块
 
@@ -312,7 +320,45 @@ Then 强调：
 
 ---
 
-## 6. 当前产物与质量状态
+## 6. Step 4：Test Generation（实现细节）
+
+### 6.1 总体目标
+
+输入：
+
+- `intents.json`（Step 3 产出的结构化意图和上下文代码）
+- `pairs.json`（Step 1 产出的历史用例对，用于提取 Few-Shot Example）
+
+输出：
+
+- `generated_tests.json`（包含最终生成的 JUnit 测试代码和所使用的完整 Prompt）
+
+### 6.2 相似测试检索 (Few-Shot Examples)
+
+为引导 LLM 学习目标项目的测试规范与风格，我们会在 Prompt 中加入 1-2 个该项目已有的测试用例。
+核心算法 (`compute_similarity` & `get_similar_tests`)：
+- **代码文本相似度 (Weight: 0.5)**：比较当前 Focal Method 与候选 Focal Method 源码的相似度（基于 `difflib.SequenceMatcher`）。
+- **意图相似度 (Weight: 0.5)**：计算当前方法的意图集合与候选方法意图集合的 Jaccard 相似度（交集/并集）。
+- 按加权总分降序排列，取 Top-2 作为 Few-Shot 示例。
+
+### 6.3 Prompt 构造 (`prompt_builder.py`)
+
+生成的 Prompt 包含五个结构化区块：
+1. **系统角色设定**：声明大模型作为测试工程师，必须遵循 GWT 结构。
+2. **代码上下文 (Code Context)**：注入 Step 3 解析好的 Imports、成员变量定义、Focal Method 源码以及关联方法源码。
+3. **样例参考 (Similar Test Cases)**：注入上述检索到的 Few-Shot 代码。
+4. **结构化测试意图 (Test Intents)**：将 JSON 格式的 `[Given]` (前置状态/数据), `[When]` (触发行为), `[Then]` (预期副作用) 转化为 Markdown 列表，强制 LLM 为每种意图（Functional, Boundary 等）生成独立的测试方法。
+5. **输出约束 (Output Requirements)**：限制仅输出纯净的 `java` 代码块。
+
+### 6.4 LLM 交互
+
+- 目前集成使用的是 **DeepSeek API** (`deepseek-chat` 模型)。
+- 使用低 Temperature (0.2) 以确保生成的代码逻辑严谨。
+- 内置基于 HTTP 的错误重试与限流 (429) 回避机制。
+
+---
+
+## 7. 当前产物与质量状态
 
 基于 `spark-master` 当前结果：
 
@@ -321,13 +367,11 @@ Then 强调：
   - Functional: 189
   - Boundary/Exception: 189
   - Interaction/Dependency: 38
-- 代码上下文覆盖：
-  - 有 `related_method_codes`：76/189
-  - 有 `field_definitions`：56/189
+- 测试生成率：100% (通过 Step 4 已成功对接 LLM 生成代码结构)
 
 ---
 
-## 7. 维护建议（关键）
+## 8. 维护建议（关键）
 
 ### 7.1 代码契约稳定性
 
@@ -361,23 +405,29 @@ Then 强调：
 
 ---
 
-## 8. 运行方式（复现）
+## 9. 运行方式（复现）
 
 ```bash
 python run_pipeline.py --steps 1
 python run_pipeline.py --steps 2
 python run_pipeline.py --steps 3
+python run_pipeline.py --steps 4
 ```
 
-或一次跑通：
+或一次跑通全流程：
 
 ```bash
-python run_pipeline.py --steps 123
+python run_pipeline.py --steps 1234
+```
+
+调试生成（仅对前 N 个意图生成测试，避免消耗过多 API 额度）：
+```bash
+python run_pipeline.py --steps 4 --limit 5
 ```
 
 ---
 
-## 9. FAQ（简版）
+## 10. FAQ（简版）
 
 **Q: 为什么很多记录没有 state precondition?**  
 A: 当前 ESG 的 `guarded_by_*` 边本身较稀疏，属于图数据覆盖限制，不完全是提取器问题。
