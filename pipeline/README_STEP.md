@@ -1,6 +1,6 @@
-# Intent-Driven Testing Pipeline (Step 1 to 4)
+# Intent-Driven Testing Pipeline (Step 1 to 5)
 
-本文档详细说明当前 `intent_driven_testing` 项目中，前 4 个步骤（输入转换、ESG 构建、意图生成、测试用例生成）的**实现方式**、**数据契约**、**关键算法**与**维护建议**。
+本文档详细说明当前 `intent_driven_testing` 项目中，前 5 个步骤（输入转换、ESG 构建、意图生成、测试用例生成、测试执行与修复）的**实现方式**、**数据契约**、**关键算法**与**维护建议**。
 
 ---
 
@@ -12,6 +12,7 @@
 - Step 2：`pipeline/step2_esg_construction/esg_runner.py`
 - Step 3：`pipeline/step3_intent_generation/*`
 - Step 4：`pipeline/step4_test_generation/*`
+- Step 5：`pipeline/step5_test_execution/*`
 
 核心数据流：
 
@@ -19,6 +20,7 @@
 2. Step 2 调用 Java ESG 分析器，输出 `esg_graph.json`（及 `spark_esg.dot`）
 3. Step 3 融合 `pairs.json + esg_graph.json`，输出 `intents.json`
 4. Step 4 融合 `intents.json + pairs.json`，构建完整上下文 Prompt 并调用 LLM 生成测试代码，输出 `generated_tests.json`
+5. Step 5 读取 `generated_tests.json`，隔离运行 Maven 测试，结合编译/运行错误利用 LLM 进行最多 3 次自我修复，输出 `execution_results.json`
 
 ---
 

@@ -63,6 +63,7 @@ from pipeline.step1_input_transform import extractor as step1
 from pipeline.step2_esg_construction import esg_runner as step2
 from pipeline.step3_intent_generation import generator as step3
 from pipeline.step4_test_generation import generator as step4
+from pipeline.step5_test_execution import executor as step5
 
 logger = get_logger("pipeline")
 
@@ -99,6 +100,15 @@ def _print_summary(label: str, data) -> None:
                 if "intent_type" in item:
                     # Not actually happening here since intent is inside intents array
                     pass
+                elif "execution_result" in item:
+                    res = item.get("execution_result", {})
+                    logger.info(
+                        "  • Execution for %s.%s -> %s (Loops: %d)",
+                        item.get("focal_class", "?"),
+                        item.get("focal_method", "?"),
+                        res.get("status", "?"),
+                        item.get("repair_loops", 0)
+                    )
                 elif "generated_test_code" in item:
                     logger.info(
                         "  • Generated test for %s.%s (Length: %d chars)",
@@ -150,8 +160,8 @@ def main() -> int:
         help=f"Root output directory (default: {DEFAULT_OUTPUT})",
     )
     parser.add_argument(
-        "--steps", type=str, default="1234",
-        help="Which steps to run: '1'=extraction, '2'=ESG, '3'=intent generation, '4'=test generation; combine digits to run multiple (default: 1234)",
+        "--steps", type=str, default="12345",
+        help="Which steps to run: '1'=extraction, '2'=ESG, '3'=intent generation, '4'=test generation, '5'=execution; combine digits to run multiple (default: 12345)",
     )
     parser.add_argument(
         "--limit", type=int, default=0,
@@ -247,6 +257,22 @@ def main() -> int:
             logger.error("Step 4 failed.")
             return 1
         _print_summary("Step 4 Result – Generated Tests", generated_tests)
+
+    # ── Step 5: Test Execution and Repair ────────────────────────────────────
+    if "5" in args.steps:
+        tests_out = _esg_output_dir(project_root, output_root) / "generated_tests.json"
+        exec_out = _esg_output_dir(project_root, output_root) / "execution_results.json"
+        
+        execution_results = step5.run(
+            generated_tests_path=tests_out,
+            project_root=project_root,
+            output_path=exec_out,
+            limit=args.limit,
+        )
+        if execution_results is None:
+            logger.error("Step 5 failed.")
+            return 1
+        _print_summary("Step 5 Result – Execution Metrics", execution_results)
 
     logger.info("Pipeline completed successfully ✓")
     return 0

@@ -1,7 +1,66 @@
 import json
+import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import List, Dict, Any
 
-def build_prompt(intent_record: Dict[str, Any], similar_tests: List[str] = None) -> str:
+def get_project_dependencies(project_root: Path) -> Dict[str, str]:
+    """
+    Parses pom.xml to identify key testing libraries and their versions.
+    Returns a dict like: {"junit": "4.12", "mockito": "1.10.19"}
+    """
+    pom_path = project_root / "pom.xml"
+    if not pom_path.exists():
+        # Fallback if no pom.xml found
+        return {}
+        
+    deps = {}
+    try:
+        # Register namespace to parse maven pom properly
+        namespaces = {'mvn': 'http://maven.apache.org/POM/4.0.0'}
+        tree = ET.parse(pom_path)
+        root = tree.getroot()
+        
+        # Helper to resolve properties like ${junit.version}
+        properties = {}
+        props_elem = root.find('mvn:properties', namespaces)
+        if props_elem is not None:
+            for prop in props_elem:
+                properties[prop.tag.replace(f"{{{namespaces['mvn']}}}", "")] = prop.text
+
+        def resolve_version(ver_str):
+            if ver_str and ver_str.startswith("${") and ver_str.endswith("}"):
+                prop_name = ver_str[2:-1]
+                return properties.get(prop_name, ver_str)
+            return ver_str
+
+        # Scan dependencies
+        # Note: This is a simple scan, it doesn't handle parent poms or dependency management fully
+        for dep in root.findall(".//mvn:dependency", namespaces):
+            group_id = dep.find('mvn:groupId', namespaces)
+            artifact_id = dep.find('mvn:artifactId', namespaces)
+            version = dep.find('mvn:version', namespaces)
+            
+            if group_id is not None and artifact_id is not None:
+                g = group_id.text
+                a = artifact_id.text
+                v = resolve_version(version.text) if version is not None else "unknown"
+                
+                if "junit" in a:
+                    deps["junit"] = v
+                    deps["junit_major"] = v.split('.')[0] if v and v[0].isdigit() else "4"
+                elif "mockito" in a:
+                    deps["mockito"] = v
+                elif "powermock" in a:
+                    deps["powermock"] = v
+                elif "jupiter" in a or "junit-platform" in a:
+                    deps["junit_major"] = "5"
+                    
+    except Exception as e:
+        print(f"Warning: Failed to parse pom.xml: {e}")
+        
+    return deps
+
+def build_prompt(intent_record: Dict[str, Any], similar_tests: List[str] = None, project_root: Path = None) -> str:
     """
     Builds a complete and correct context prompt for the LLM to generate a test case.
     
@@ -9,6 +68,7 @@ def build_prompt(intent_record: Dict[str, Any], similar_tests: List[str] = None)
         intent_record: A single record from intents.json
         similar_tests: Optional list of similar test cases (source code strings) from pairs.json
                        to be used as few-shot examples.
+        project_root: Path to the project root, used to detect dependencies from pom.xml
     
     Returns:
         The full string prompt to send to the LLM.
@@ -18,14 +78,40 @@ def build_prompt(intent_record: Dict[str, Any], similar_tests: List[str] = None)
     context_code = intent_record["context_code"]
     intents = intent_record["intents"]
     
+    # Detect testing framework versions
+    test_deps = get_project_dependencies(project_root) if project_root else {}
+    junit_version = test_deps.get("junit", "4.12")
+    junit_major = test_deps.get("junit_major", "4")
+    mockito_version = test_deps.get("mockito", "1.10.19")
+    
     # 1. Start with system instructions
     prompt = [
         "You are an expert Java developer and testing engineer.",
         "Your task is to generate a JUnit test class or methods for a given focal method based on specific test intents.",
         "The generated test MUST follow the structured Given-When-Then (GWT) constraints provided below.",
-        "Ensure the generated code is syntactically correct, imports necessary dependencies, and focuses purely on the requested intent.",
-        ""
     ]
+    
+    # Dynamic Framework Constraints
+    if junit_major == "5":
+        prompt.append("Strictly use **JUnit 5** (`org.junit.jupiter.api.*`).")
+        prompt.append("Use `@Test`, `@BeforeEach`, `@AfterEach`, `Assertions.assertEquals`.")
+        if "mockito" in test_deps:
+            prompt.append("Use `@ExtendWith(MockitoExtension.class)` for Mockito integration.")
+    else:
+        # Default to JUnit 4
+        prompt.append(f"Strictly use **JUnit 4** (version {junit_version}) (`org.junit.*`).")
+        prompt.append("Use `@Test`, `@Before`, `@After`, `Assert.assertEquals`.")
+        prompt.append("Do NOT use JUnit 5 (`org.junit.jupiter.*`) imports.")
+        
+        if "powermock" in test_deps:
+            prompt.append(f"Use PowerMock {test_deps['powermock']} with `@RunWith(PowerMockRunner.class)` if you need to mock static/private methods.")
+        elif "mockito" in test_deps:
+            prompt.append(f"Use Mockito {mockito_version} (`@RunWith(MockitoJUnitRunner.class)` or `MockitoAnnotations.initMocks(this)`).")
+            if mockito_version.startswith("1."):
+                 prompt.append("Note: This is an older Mockito 1.x version. Use `Matchers` instead of `ArgumentMatchers`.")
+
+    prompt.append("Ensure the generated code is syntactically correct, imports necessary dependencies, and focuses purely on the requested intent.")
+    prompt.append("")
     
     # 2. Add Code Context
     prompt.append(f"### Code Context: {focal_class}.{focal_method}")
