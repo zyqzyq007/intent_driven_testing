@@ -9,7 +9,7 @@
 
 ## 🚀 核心流程 (Pipeline)
 
-项目包含 5 个核心步骤，目前已 **全流程跑通**：
+项目包含 6 个核心步骤，目前已 **全流程跑通**：
 
 1.  **Input Transformation**: 扫描 Java 源码，提取测试与被测方法对 (`pairs.json`)。
 2.  **ESG Construction**: 编译并分析代码，构建执行语义图 (`esg_graph.json`)。
@@ -20,6 +20,9 @@
 5.  **Execution & Self-Correction**: 
     - **项目级环境隔离**：并发执行测试，避免 Maven 冲突。
     - **自我修复循环**：自动捕获编译/运行错误，反馈给 LLM 进行最多 3 次修复。
+6.  **Evaluation**:
+    - **质量评估**：自动评估生成的测试用例质量，统计通过失败率 (Success Pass / Compile Fail等)。
+    - **多维指标**：计算整体与单个用例的 CodeBLEU 代码相似度、JaCoCo 运行覆盖率，并输出详细评测报告 (`evaluation_metrics.json` 与 `evaluation_individual.json`)。
 
 ---
 
@@ -32,6 +35,7 @@
 | **Step 3** | ✅ 完成 | `intents.json` | 生成了 416 条结构化意图 |
 | **Step 4** | ✅ 完成 | `generated_tests.json` | 成功对接 DeepSeek API 生成代码 |
 | **Step 5** | ✅ 完成 | `execution_results.json` | **闭环跑通**：已验证自动修复机制有效 |
+| **Step 6** | ✅ 完成 | `evaluation_metrics.json` | 自动化评估框架跑通，支持多维质量指标 |
 
 ---
 
@@ -44,14 +48,14 @@
 
 2.  **运行全流程**:
     ```bash
-    # 一键执行 Step 1 到 5
-    python run_pipeline.py --steps 12345
+    # 一键执行 Step 1 到 6
+    python run_pipeline.py --steps 123456
     ```
 
 3.  **调试运行**:
     ```bash
-    # 仅运行生成和执行步骤（前 5 个用例）
-    python run_pipeline.py --steps 45 --limit 5
+    # 仅运行评估步骤
+    python run_pipeline.py --steps 6
     ```
 
 ---
@@ -61,6 +65,7 @@
 *   `pipeline/`: 核心 Python 脚本
     *   `step4_test_generation/`: Prompt 构造与 LLM 调用
     *   `step5_test_execution/`: Maven 执行与修复循环
+    *   `step6_evaluation/`: 评估指标计算 (CodeBLEU, Coverage 等)
 *   `esg_construction/`: Java 静态分析器源码
 *   `data/`: 
     *   `raw/`: 原始项目源码 (如 `spark-master`)

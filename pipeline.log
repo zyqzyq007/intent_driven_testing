@@ -1,0 +1,87 @@
+nohup: ignoring input
+2026-03-30 12:47:46 [INFO] pipeline - ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2026-03-30 12:47:46 [INFO] pipeline -   Intent-Driven Testing Pipeline
+2026-03-30 12:47:46 [INFO] pipeline -   Project   : /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/raw/spark-master
+2026-03-30 12:47:46 [INFO] pipeline -   Output    : /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/processed
+2026-03-30 12:47:46 [INFO] pipeline -   Steps     : 123456
+2026-03-30 12:47:46 [INFO] pipeline - ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2026-03-30 12:47:46 [INFO] pipeline.step1_input_transform.extractor - === Step 1: Input Transformation ===
+2026-03-30 12:47:46 [INFO] pipeline.step1_input_transform.extractor - Project: /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/raw/spark-master
+2026-03-30 12:47:46 [INFO] pipeline.step1_input_transform.extractor - Output:  /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/processed/spark-master/pairs.json
+2026-03-30 12:47:46 [INFO] pipeline.step1_input_transform.extractor - Main sources: /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/raw/spark-master/src/main/java
+2026-03-30 12:47:46 [INFO] pipeline.step1_input_transform.extractor - Test sources: /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/raw/spark-master/src/test/java
+2026-03-30 12:47:46 [INFO] pipeline.step1_input_transform.extractor - Found 100 main files, 84 test files
+2026-03-30 12:47:47 [INFO] pipeline.step1_input_transform.extractor - Indexed 93 main classes, 47 test classes
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'FilterTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'StaticFilesFromArchiveTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'BooksIntegrationTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'BodyAvailabilityTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'ResponseTest.testConstructor_whenHttpServletResponseParameter' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'QueryParamsMapTest.constructorWithParametersMap' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'QueryParamsMapTest.itShouldbeNullSafe' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'QueryParamsMapTest.testConstructor' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'CookiesIntegrationTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'ResponseWrapperDelegationTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'GenericIntegrationTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'StaticFilesMemberTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'UnmapTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'FilterImplTest.testConstructor' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'GzipTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'ResponseBodyTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'ServicePortIntegrationTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'SessionTest.testSession_whenHttpSessionIsNull_thenThrowException' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'SessionTest.testSession_whenRequestIsNull_thenThrowException' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'SessionTest.testSession' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'GenericSecureIntegrationTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'MultipleServicesTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'MultipleFiltersTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'RouteImplTest.testConstructor' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'InitExceptionHandlerTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'HttpMethodTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'DisableMimeGuessingTest'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'StaticFilesTest.testMimeTypes' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'StaticFilesTest.testCustomMimeType' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'StaticFilesTest.testStaticFileCssStyleCss' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'StaticFilesTest.testStaticFilePagesIndexHtml' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'StaticFilesTest.testStaticFilePageHtml' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'StaticFilesTest.testDirectoryTraversalProtectionLocal' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'StaticFilesTest.testExternalStaticFile' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'StaticFilesTest.testGet' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'StaticFilesTest.testExceptionMapping404' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'StaticFilesTestExternal'
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'CustomErrorPagesTest.testGetHi' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'CustomErrorPagesTest.testCustomNotFound' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'CustomErrorPagesTest.testCustomInternal' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor -   Could not map test method 'CustomErrorPagesTest.testCustomInternalFailingRoute' to any focal method
+2026-03-30 12:47:47 [DEBUG] pipeline.step1_input_transform.extractor - No focal class found for test class 'ServletTest'
+2026-03-30 12:47:47 [INFO] pipeline.step1_input_transform.extractor - Extracted 189 focal-test pairs
+2026-03-30 12:47:47 [INFO] pipeline.step1_input_transform.extractor - Pairs saved → /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/processed/spark-master/pairs.json
+2026-03-30 12:47:47 [INFO] pipeline - ────────────────────────────────────────────────────────────
+2026-03-30 12:47:47 [INFO] pipeline -   Step 1 Result – Focal/Test Pairs
+2026-03-30 12:47:47 [INFO] pipeline - ────────────────────────────────────────────────────────────
+2026-03-30 12:47:47 [INFO] pipeline -   Total items  : 189
+2026-03-30 12:47:47 [INFO] pipeline -   • ExceptionMapperTest.testGetInstance_whenDefaultInstanceIsNull  →  ExceptionMapper.getInstance
+2026-03-30 12:47:47 [INFO] pipeline -   • ExceptionMapperTest.testGetInstance_whenDefaultInstanceIsNotNull  →  ExceptionMapper.getInstance
+2026-03-30 12:47:47 [INFO] pipeline -   • Base64Test.test_encode  →  Base64.encode
+2026-03-30 12:47:47 [INFO] pipeline -   … and 186 more
+2026-03-30 12:47:47 [INFO] pipeline - ────────────────────────────────────────────────────────────
+2026-03-30 12:47:47 [INFO] pipeline.step2_esg_construction.esg_runner - === Step 2: ESG Construction ===
+2026-03-30 12:47:47 [INFO] pipeline.step2_esg_construction.esg_runner - ESG module already compiled – skipping mvn compile.
+2026-03-30 12:47:47 [INFO] pipeline.step2_esg_construction.esg_runner - esg_graph.json already exists – reusing (pass reuse_existing=False to force rebuild).
+2026-03-30 12:47:47 [INFO] pipeline.step2_esg_construction.esg_runner - ESG loaded: 1615 nodes  (1039 METHOD, 325 STATE, 251 DATA),  3611 edges  (1278 TEMPORAL, 26 STATE_TRANSITION, 2307 CAUSAL)
+2026-03-30 12:47:47 [INFO] pipeline - ────────────────────────────────────────────────────────────
+2026-03-30 12:47:47 [INFO] pipeline -   Step 2 Result – Execution Semantic Graph
+2026-03-30 12:47:47 [INFO] pipeline - ────────────────────────────────────────────────────────────
+2026-03-30 12:47:47 [INFO] pipeline -   Nodes : 1615  (METHOD=1039  STATE=325  DATA=251)
+2026-03-30 12:47:47 [INFO] pipeline -   Edges : 3611  (TEMPORAL=1278  STATE_TRANSITION=26  CAUSAL=2307)
+2026-03-30 12:47:47 [INFO] pipeline - ────────────────────────────────────────────────────────────
+2026-03-30 12:47:47 [INFO] pipeline.step3_intent_generation.generator - === Step 3: Intent Generation ===
+2026-03-30 12:47:47 [INFO] pipeline.step3_intent_generation.generator - Pairs     : /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/processed/spark-master/pairs.json
+2026-03-30 12:47:47 [INFO] pipeline.step3_intent_generation.generator - ESG graph : /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/processed/spark-master/esg_graph.json
+2026-03-30 12:47:47 [INFO] pipeline.step3_intent_generation.generator - Output    : /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/processed/spark-master/intents.json
+2026-03-30 12:47:47 [INFO] pipeline.step3_intent_generation.generator - Loaded 189 focal-test pairs
+2026-03-30 12:47:47 [INFO] pipeline.step3_intent_generation.esg_extractor - ESGGraph indexed: 1615 nodes, 3611 edges
+2026-03-30 12:47:47 [INFO] pipeline.step3_intent_generation.generator - Project root: /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/raw/spark-master
+2026-03-30 12:47:47 [DEBUG] pipeline.step3_intent_generation.code_resolver - Source index built: 99 unique class names from /home/jupyter-yyf-zyq/Bo_1/intent_driven_testing/data/raw/spark-master/src/main/java
+2026-03-30 12:47:48 [DEBUG] pipeline.step3_intent_generation.code_resolver - Method not resolved: Redirect$Status.intValue
+2026-03-30 12:47:49 [DEBUG] pipeline.step3_intent_generation.code_resolver - Method not resolved: Redirect$Status.intValue
