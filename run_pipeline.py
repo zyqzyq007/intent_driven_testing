@@ -64,6 +64,7 @@ from pipeline.step2_esg_construction import esg_runner as step2
 from pipeline.step3_intent_generation import generator as step3
 from pipeline.step4_test_generation import generator as step4
 from pipeline.step5_test_execution import executor as step5
+from pipeline.step6_evaluation import evaluator as step6
 
 logger = get_logger("pipeline")
 
@@ -160,8 +161,8 @@ def main() -> int:
         help=f"Root output directory (default: {DEFAULT_OUTPUT})",
     )
     parser.add_argument(
-        "--steps", type=str, default="12345",
-        help="Which steps to run: '1'=extraction, '2'=ESG, '3'=intent generation, '4'=test generation, '5'=execution; combine digits to run multiple (default: 12345)",
+        "--steps", type=str, default="123456",
+        help="Which steps to run: '1'=extraction, '2'=ESG, '3'=intent generation, '4'=test generation, '5'=execution, '6'=evaluation; combine digits to run multiple (default: 123456)",
     )
     parser.add_argument(
         "--limit", type=int, default=0,
@@ -273,6 +274,41 @@ def main() -> int:
             logger.error("Step 5 failed.")
             return 1
         _print_summary("Step 5 Result – Execution Metrics", execution_results)
+
+    # ── Step 6: Evaluation ───────────────────────────────────────────────────
+    if "6" in args.steps:
+        exec_out = _esg_output_dir(project_root, output_root) / "execution_results.json"
+        pairs_out = _pairs_output(project_root, output_root)
+        eval_out = _esg_output_dir(project_root, output_root) / "evaluation_metrics.json"
+
+        eval_metrics = step6.run(
+            execution_results_path=exec_out,
+            pairs_path=pairs_out,
+            output_path=eval_out,
+            project_root=project_root,
+        )
+        if eval_metrics is None:
+            logger.error("Step 6 failed.")
+            return 1
+        
+        # We handle _print_summary for dict in a generic way, let's output manually
+        logger.info("────────────────────────────────────────────────────────────")
+        logger.info("  Step 6 Result – Evaluation Metrics")
+        logger.info("────────────────────────────────────────────────────────────")
+        logger.info("  Total Evaluated : %d", eval_metrics.get("total_evaluated", 0))
+        logger.info("  Success Pass    : %d", eval_metrics.get("success_pass", 0))
+        logger.info("  Fail Test       : %d", eval_metrics.get("fail_test", 0))
+        logger.info("  Fail Compile    : %d", eval_metrics.get("fail_compile", 0))
+        logger.info("  Fail Execute    : %d", eval_metrics.get("fail_execute", 0))
+        if "codebleu" in eval_metrics and eval_metrics["codebleu"]:
+            cb = eval_metrics["codebleu"]
+            logger.info("  CodeBLEU Score  : %.4f", cb.get("codebleu", 0.0))
+            logger.info("    -> ngram_match : %.4f", cb.get("ngram_match_score", 0.0))
+            logger.info("    -> weighted_ngram : %.4f", cb.get("weighted_ngram_match_score", 0.0))
+            logger.info("    -> syntax_match : %.4f", cb.get("syntax_match_score", 0.0))
+            logger.info("    -> dataflow_match : %.4f", cb.get("dataflow_match_score", 0.0))
+        logger.info("  Coverage        : %s", eval_metrics.get("coverage", ""))
+        logger.info("────────────────────────────────────────────────────────────")
 
     logger.info("Pipeline completed successfully ✓")
     return 0

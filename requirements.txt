@@ -1,3 +1,7 @@
 javalang==0.13.0
 click==8.1.7
 PyYAML==6.0.1
+codebleu
+beautifulsoup4
+tree-sitter==0.22.3
+tree-sitter-java==0.21.0
