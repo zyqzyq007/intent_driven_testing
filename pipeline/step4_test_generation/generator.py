@@ -125,6 +125,11 @@ def get_similar_tests(pairs: List[Dict[str, Any]], target_focal_code: str, targe
             if pid is not None:
                 pair_intents_map[pid] = record.get("intents", [])
 
+    # Get target class for class-based boosting
+    target_class = ""
+    if 0 <= exclude_pair_id < len(pairs):
+        target_class = pairs[exclude_pair_id].get("focal_class", "")
+
     # Calculate similarity scores for all valid pairs
     scored_pairs = []
     for idx, pair in enumerate(pairs):
@@ -132,9 +137,18 @@ def get_similar_tests(pairs: List[Dict[str, Any]], target_focal_code: str, targe
             continue
             
         candidate_focal_code = pair.get("focal_code", "")
-        test_code = pair.get("test_code", "")
+        candidate_class = pair.get("focal_class", "")
         
-        if not candidate_focal_code or not test_code:
+        # Handle both old and new schema
+        test_codes = []
+        if "test_code" in pair:
+            test_codes.append(pair["test_code"])
+        elif "test_methods" in pair:
+            for tm in pair.get("test_methods", []):
+                if "test_code" in tm:
+                    test_codes.append(tm["test_code"])
+        
+        if not candidate_focal_code or not test_codes:
             continue
             
         # 1. Code textual similarity
@@ -149,13 +163,32 @@ def get_similar_tests(pairs: List[Dict[str, Any]], target_focal_code: str, targe
         # Combined score
         final_score = (code_score * 0.5) + (intent_score * 0.5)
         
-        scored_pairs.append((final_score, test_code))
+        # 3. Same-class boost: strongly prefer examples from the same class
+        if target_class and candidate_class and target_class == candidate_class:
+            final_score += 0.5
+            
+        # Join all test codes for this candidate
+        combined_test_code = "\n".join(test_codes)
+        scored_pairs.append((final_score, combined_test_code))
         
     # Sort by similarity score in descending order
     scored_pairs.sort(key=lambda x: x[0], reverse=True)
     
-    # Return top 2 similar test codes
-    similar = [test_code for score, test_code in scored_pairs[:2]]
+    # Return top 2 similar test codes, but only if they have a meaningful connection
+    similar = []
+    if scored_pairs:
+        best_score = scored_pairs[0][0]
+        for score, test_code in scored_pairs:
+            # If the best match is a same-class boost (score > 1.0) and this candidate
+            # is just a general generic match (gap > 0.4), do not include it.
+            if best_score > 1.0 and (best_score - score) > 0.4:
+                continue
+                
+            if score > 0.2:
+                similar.append(test_code)
+            if len(similar) >= 2:
+                break
+            
     return similar
 
 import concurrent.futures
@@ -170,12 +203,22 @@ def process_record(args):
     test_class = intent_record.get("test_class", "")
     focal_code = intent_record.get("context_code", {}).get("focal_code", "")
     target_intents = intent_record.get("intents", [])
+    
+    target_focal_class = intent_record.get("focal_class")
+    target_focal_method = intent_record.get("focal_method")
+    
+    target_imports = []
+    # Find matching test_imports in pairs_data using focal_class and focal_method
+    for p in pairs_data:
+        if p.get("focal_class") == target_focal_class and p.get("focal_method") == target_focal_method:
+            target_imports = p.get("test_imports", [])
+            break
 
     # 1. Retrieve similar test cases
     similar_tests = get_similar_tests(pairs_data, focal_code, target_intents, pair_id, intents_data)
 
     # 2. Build the comprehensive prompt
-    prompt = build_prompt(intent_record, similar_tests, project_root)
+    prompt = build_prompt(intent_record, similar_tests, project_root, target_imports)
 
     logger.debug("Generated prompt for pair_id %d (%s.%s)", 
                  pair_id, intent_record["focal_class"], intent_record["focal_method"])

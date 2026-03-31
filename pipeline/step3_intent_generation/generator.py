@@ -111,6 +111,7 @@ def run(
             downstream_calls = slice_.downstream_calls,
             data_reads       = slice_.data_reads,
             data_writes      = slice_.data_writes,
+            test_imports     = pair.get("test_imports", []),
         )
 
         # Build intent skeletons

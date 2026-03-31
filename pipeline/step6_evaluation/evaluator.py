@@ -36,25 +36,14 @@ def run(execution_results_path: Path, pairs_path: Path, output_path: Path, proje
     # 3) Compute metrics
     codebleu = compute_codebleu(aligned)
 
-    jacoco_csv   = project_root / "target" / "site" / "jacoco" / "jacoco.csv"
-
-    # Extract generated test class names to scope JaCoCo and limit times taken
-    generated_test_classes = _extract_test_class_names(exec_results)
-    focal_classes = _extract_focal_class_names(exec_results)
-
-    coverage = compute_coverage_if_available(str(jacoco_csv), str(project_root), 
-                                             target_tests=generated_test_classes, 
-                                             focal_classes=focal_classes)
-
-    report = {
-        "total_evaluated": len(exec_results),
-        **stats,
-        "codebleu": codebleu,
-        "coverage": coverage,
-    }
-
+    # Calculate overall coverage over all stored individual JaCoCo XML files
+    total_line = covered_line = 0
+    total_instr = covered_instr = 0
+    total_branch = covered_branch = 0
+    
     # 4) Compute Individual Metrics
     individual_metrics = []
+    
     for item in exec_results:
         test_id = item.get("pair_id")
         exec_info = item.get("execution_result", {})
@@ -62,11 +51,29 @@ def run(execution_results_path: Path, pairs_path: Path, output_path: Path, proje
         focal_class = item.get("focal_class", "")
         focal_method = item.get("focal_method", "")
         
+        method_cov = "0%"
+        cov_key = f"{focal_class}.{focal_method}"
+        jacoco_xml = exec_info.get("jacoco_xml_path")
+        
+        if jacoco_xml and os.path.exists(jacoco_xml):
+            o_cov, m_cov_dict, (t_l, c_l, t_i, c_i, t_b, c_b) = compute_coverage_if_available(
+                jacoco_xml, focal_classes=[focal_class]
+            )
+            total_line += t_l
+            covered_line += c_l
+            total_instr += t_i
+            covered_instr += c_i
+            total_branch += t_b
+            covered_branch += c_b
+            
+            method_cov = m_cov_dict.get(cov_key, "0%")
+            
         test_metric = {
             "pair_id": test_id,
             "focal_class": focal_class,
             "focal_method": focal_method,
             "status": status,
+            "coverage": method_cov
         }
 
         # Calculate CodeBLEU specifically for this item if referenced
@@ -85,6 +92,23 @@ def run(execution_results_path: Path, pairs_path: Path, output_path: Path, proje
             test_metric["codebleu"] = None
 
         individual_metrics.append(test_metric)
+
+    # Compute overall coverage string
+    parts = []
+    if total_line > 0:
+        parts.append(f"Line {covered_line/total_line*100:.1f}% ({covered_line}/{total_line})")
+    if total_instr > 0:
+        parts.append(f"Instruction {covered_instr/total_instr*100:.1f}% ({covered_instr}/{total_instr})")
+    if total_branch > 0:
+        parts.append(f"Branch {covered_branch/total_branch*100:.1f}% ({covered_branch}/{total_branch})")
+    coverage_overall = " | ".join(parts) if parts else "0% (no data rows)"
+
+    report = {
+        "total_evaluated": len(exec_results),
+        **stats,
+        "codebleu": codebleu,
+        "coverage": coverage_overall,
+    }
 
     # Write overall report
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -169,121 +193,92 @@ def compute_codebleu(aligned_data: List[Dict[str, str]]) -> Dict[str, float]:
         return {}
 
 # ==========================================
-# 5. Maven Helper
+# 5. Maven Helper (Removed - now runs in Step 5 environment)
 # ==========================================
-def _run_mvn(
-    goals,          # str (space-separated) or list[str]
-    project_root: str,
-    extra_args: list = None,
-    timeout: int = 300,
-) -> Tuple[bool, str]:
-    """
-    Run one or more Maven goals in project_root.
-    Returns (success: bool, combined_output: str).
-    """
-    goal_list = goals.split() if isinstance(goals, str) else list(goals)
 
-    # Use mvnw wrapper if it exists in the project root, else fallback to system mvn
-    mvn_cmd = "mvn"
-    mvnw_path = Path(project_root) / "mvnw"
-    if mvnw_path.exists():
-        mvn_cmd = str(mvnw_path.resolve())
-
-    cmd = (
-        [mvn_cmd]
-        + goal_list
-        + ["--batch-mode", "-Dsurefire.failIfNoSpecifiedTests=false"]
-        + (extra_args or [])
-    )
-
-    logger.info(f"Running: {' '.join(cmd)}  (cwd={project_root})")
-    try:
-        result = subprocess.run(
-            cmd,
-            cwd=project_root,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        success = result.returncode == 0
-        output  = result.stdout + result.stderr
-        if not success:
-            logger.warning(
-                f"mvn {' '.join(goal_list)} exited with code {result.returncode}:\n"
-                f"{output[-2000:]}"
-            )
-        return success, output
-    except FileNotFoundError:
-        return False, "mvn not found in PATH"
-    except subprocess.TimeoutExpired:
-        return False, f"mvn {' '.join(goal_list)} timed out after {timeout}s"
-    except Exception as e:
-        return False, str(e)
+import xml.etree.ElementTree as ET
 
 # ==========================================
 # 6. JaCoCo Coverage
 # ==========================================
 def compute_coverage_if_available(
-    csv_path: str,
-    project_root: str = None,
-    target_tests: List[str] = None,
-    focal_classes: List[str] = None,
-    timeout: int = 600,
-) -> str:
+    xml_path: str,
+    focal_classes: List[str] = None
+) -> Tuple[str, Dict[str, str], Tuple[int, int, int, int, int, int]]:
     """
-    Parse JaCoCo line / instruction / branch coverage from jacoco.csv.
-
-    Root cause fix: `jacoco:report` alone produces an empty report when there
-    is no .exec file. We run `mvn test jacoco:report` together so the execution
-    data is collected first.
+    Parse JaCoCo line / instruction / branch coverage from jacoco.xml.
+    Returns:
+       (overall_coverage_string, dict_of_method_coverage, (total_line, covered_line, total_instr, covered_instr, total_branch, covered_branch))
     """
-    if not os.path.exists(csv_path):
-        if project_root is None:
-            return f"Report not found: {csv_path}. Provide project_root to auto-run JaCoCo."
-
-        extra_args = ["-DskipTests=false"]
-        if target_tests:
-            test_list = ",".join(target_tests)
-            extra_args.append(f"-Dtest={test_list}")
-            logger.info(f"JaCoCo test executions scoped to: {test_list}")
-
-        ok, out = _run_mvn(
-            ["test", "jacoco:report"],
-            project_root,
-            extra_args=extra_args,
-            timeout=timeout,
-        )
-        # jacoco:report can still write the CSV even when some tests fail (non-zero exit).
-        # Only give up if the file truly did not appear.
-        if not ok and not os.path.exists(csv_path):
-            return f"JaCoCo failed (mvn test jacoco:report):\n{out[-800:]}"
-        if not os.path.exists(csv_path):
-            return f"JaCoCo ran but report still not found at: {csv_path}"
-        if not ok:
-            logger.warning("Some tests failed, but JaCoCo report was generated successfully.")
+    if not os.path.exists(xml_path):
+        return f"Report not found: {xml_path}.", {}, (0, 0, 0, 0, 0, 0)
 
     total_line = covered_line = 0
     total_instr = covered_instr = 0
     total_branch = covered_branch = 0
+    
+    method_coverage_dict = {}
 
     try:
-        with open(csv_path, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                # If focal classes are provided, only aggregate coverage for those under-test code classes
-                if focal_classes:
-                    base_class = row.get("CLASS", "").split("$")[0]
-                    if base_class not in focal_classes:
-                        continue
-
-                def _int(key: str) -> int:
-                    return int(row.get(key, 0) or 0)
-                total_line     += _int("LINE_MISSED")        + _int("LINE_COVERED")
-                covered_line   += _int("LINE_COVERED")
-                total_instr    += _int("INSTRUCTION_MISSED") + _int("INSTRUCTION_COVERED")
-                covered_instr  += _int("INSTRUCTION_COVERED")
-                total_branch   += _int("BRANCH_MISSED")      + _int("BRANCH_COVERED")
-                covered_branch += _int("BRANCH_COVERED")
+        tree = ET.parse(xml_path)
+        
+        for package in tree.findall('package'):
+            for cls in package.findall('class'):
+                full_cls_name = cls.get('name')
+                base_class = full_cls_name.split("/")[-1].split("$")[0]
+                
+                is_focal = focal_classes and base_class in focal_classes
+                
+                if not focal_classes or is_focal:
+                    for counter in cls.findall('counter'):
+                        ctype = counter.get('type')
+                        c_covered = int(counter.get('covered', 0))
+                        c_missed = int(counter.get('missed', 0))
+                        
+                        if ctype == 'INSTRUCTION':
+                            total_instr += (c_covered + c_missed)
+                            covered_instr += c_covered
+                        elif ctype == 'BRANCH':
+                            total_branch += (c_covered + c_missed)
+                            covered_branch += c_covered
+                        elif ctype == 'LINE':
+                            total_line += (c_covered + c_missed)
+                            covered_line += c_covered
+                
+                for method in cls.findall('method'):
+                    m_name = method.get('name')
+                    cov_key = f"{base_class}.{m_name}"
+                    
+                    t_l = c_l = t_i = c_i = t_b = c_b = 0
+                    
+                    for counter in method.findall('counter'):
+                        ctype = counter.get('type')
+                        c_covered = int(counter.get('covered', 0))
+                        c_missed = int(counter.get('missed', 0))
+                        c_tot = c_covered + c_missed
+                        
+                        if ctype == 'INSTRUCTION':
+                            t_i = c_tot
+                            c_i = c_covered
+                        elif ctype == 'BRANCH':
+                            t_b = c_tot
+                            c_b = c_covered
+                        elif ctype == 'LINE':
+                            t_l = c_tot
+                            c_l = c_covered
+                            
+                    if cov_key not in method_coverage_dict:
+                        method_coverage_dict[cov_key] = {
+                            "t_line": 0, "c_line": 0,
+                            "t_instr": 0, "c_instr": 0,
+                            "t_br": 0, "c_br": 0
+                        }
+                    method_coverage_dict[cov_key]["t_line"] += t_l
+                    method_coverage_dict[cov_key]["c_line"] += c_l
+                    method_coverage_dict[cov_key]["t_instr"] += t_i
+                    method_coverage_dict[cov_key]["c_instr"] += c_i
+                    method_coverage_dict[cov_key]["t_br"] += t_b
+                    method_coverage_dict[cov_key]["c_br"] += c_b
 
         parts = []
         if total_line > 0:
@@ -293,10 +288,22 @@ def compute_coverage_if_available(
         if total_branch > 0:
             parts.append(f"Branch {covered_branch/total_branch*100:.1f}% ({covered_branch}/{total_branch})")
 
-        return " | ".join(parts) if parts else "0% (no data rows)"
+        overall_cov = " | ".join(parts) if parts else "0% (no data rows)"
+        
+        final_method_cov = {}
+        for m_key, cov in method_coverage_dict.items():
+            m_parts = []
+            if cov["t_line"] > 0:
+                m_parts.append(f"Line {cov['c_line']/cov['t_line']*100:.1f}% ({cov['c_line']}/{cov['t_line']})")
+            if cov["t_instr"] > 0:
+                m_parts.append(f"Instruction {cov['c_instr']/cov['t_instr']*100:.1f}% ({cov['c_instr']}/{cov['t_instr']})")
+            if cov["t_br"] > 0:
+                m_parts.append(f"Branch {cov['c_br']/cov['t_br']*100:.1f}% ({cov['c_br']}/{cov['t_br']})")
+            final_method_cov[m_key] = " | ".join(m_parts) if m_parts else "0%"
+            
+        return overall_cov, final_method_cov, (total_line, covered_line, total_instr, covered_instr, total_branch, covered_branch)
     except Exception as e:
-        return f"Error parsing JaCoCo report: {e}"
-
+        return f"Error parsing JaCoCo report: {e}", {}, (0, 0, 0, 0, 0, 0)
 # ==========================================
 # 7. Helper functions
 # ==========================================

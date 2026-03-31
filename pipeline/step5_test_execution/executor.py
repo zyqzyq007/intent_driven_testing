@@ -21,13 +21,17 @@ class ExecutionResult:
         self.status = status
         self.message = message
         self.error_output = error_output
+        self.jacoco_xml_path = None
         
     def to_dict(self):
-        return {
+        d = {
             "status": self.status,
             "message": self.message,
             "error_output": self.error_output
         }
+        if self.jacoco_xml_path:
+            d["jacoco_xml_path"] = self.jacoco_xml_path
+        return d
 
 def find_test_file_path(project_root: Path, test_class_name: str) -> Path:
     """
@@ -52,12 +56,12 @@ def write_test_code_to_file(test_file_path: Path, test_code: str):
 
 def run_maven_test(project_root: Path, test_class_name: str) -> ExecutionResult:
     """
-    Runs `mvn test -Dtest=TestClass` in the project directory.
+    Runs `mvn clean test jacoco:report -Dtest=TestClass` in the project directory.
     Returns the execution result containing status and error output.
     """
     # Force compilation of tests to ensure the new file is picked up
     # -DfailIfNoTests=false prevents failure if the test class is somehow not found by surefire immediately
-    cmd = ["mvn", "test", f"-Dtest={test_class_name}", "-DfailIfNoTests=false"]
+    cmd = ["mvn", "clean", "test", "jacoco:report", f"-Dtest={test_class_name}", "-DfailIfNoTests=false"]
     
     try:
         # Run maven command
@@ -189,7 +193,11 @@ def process_record(args):
     """
     Worker function to process a single test record in an isolated environment.
     """
-    record, project_root, i, total_records, worker_id = args
+    if len(args) == 6:
+        record, project_root, i, total_records, worker_id, output_dir = args
+    else:
+        record, project_root, i, total_records, worker_id = args
+        output_dir = Path("data/processed/spark-master")
     
     # Create isolated project copy for this worker (or reuse if persistent worker model)
     # NOTE: Copying project per record is too slow. We should copy per WORKER.
@@ -220,14 +228,32 @@ def process_record(args):
     final_result = None
     
     while loop_count <= MAX_REPAIR_LOOPS:
-        # 1. Write current code to project
-        write_test_code_to_file(test_file_path, current_code)
-        
-        # 2. Execute maven test
-        exec_res = run_maven_test(worker_project_root, test_class)
+        # Check for invalid/empty generation before testing
+        if current_code.strip() == "// Failed to generate test after retries" or "@Test" not in current_code:
+            exec_res = ExecutionResult("Fail Compile", "Invalid test code generated (missing @Test or generation failed).")
+            # If the initial generation failed completely, we skip repair loops
+            if current_code.strip() == "// Failed to generate test after retries" or loop_count == MAX_REPAIR_LOOPS:
+                final_result = exec_res
+                break
+        else:
+            # 1. Write current code to project
+            write_test_code_to_file(test_file_path, current_code)
+            
+            # 2. Execute maven test
+            exec_res = run_maven_test(worker_project_root, test_class)
         
         if exec_res.status == "Success Pass":
             final_result = exec_res
+            
+            # Copy jacoco.xml to processed directory for this specific pair
+            jacoco_src = worker_project_root / "target" / "site" / "jacoco" / "jacoco.xml"
+            if jacoco_src.exists():
+                jacoco_dir = output_dir / "jacoco_reports"
+                jacoco_dir.mkdir(parents=True, exist_ok=True)
+                jacoco_dest = jacoco_dir / f"jacoco_{pair_id}.xml"
+                shutil.copy(jacoco_src, jacoco_dest)
+                exec_res.jacoco_xml_path = str(jacoco_dest)
+            
             break
             
         if loop_count < MAX_REPAIR_LOOPS:
@@ -306,7 +332,7 @@ def run(generated_tests_path: Path, project_root: Path, output_path: Path, limit
                 # Acquire an environment
                 env_path = env_queue.get()
                 try:
-                    return process_record((record, env_path, i, total_records, 0))
+                    return process_record((record, env_path, i, total_records, 0, output_path.parent))
                 finally:
                     # Release environment back to queue
                     env_queue.task_done()

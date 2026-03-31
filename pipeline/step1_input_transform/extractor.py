@@ -3,17 +3,23 @@ Step 1: Input Transformation
 ============================
 Scans a Java project and extracts Focal Method ↔ Test Case pairs.
 
-Output schema (one item per pair):
+Output schema (one item per focal method):
 {
-    "test_class":      str,   # e.g. "Base64Test"
-    "test_method":     str,   # e.g. "test_encode"
-    "test_file_path":  str,   # absolute path to test file
-    "test_code":       str,   # source of the test method
-    "focal_class":     str,   # e.g. "Base64"
-    "focal_method":    str,   # e.g. "encode"
-    "focal_file_path": str,   # absolute path to focal file
-    "focal_code":      str,   # source of the focal method
+    "test_class":      str,
+    "focal_class":     str,
+    "focal_method":    str,
+    "test_file_path":  str,
+    "focal_file_path": str,
+    "focal_code":      str,
+    "test_imports":    list[str],
+    "test_methods": [
+        {
+            "test_method": str,
+            "test_code":   str
+        }, ...
+    ]
 }
+
 """
 
 from __future__ import annotations
@@ -171,9 +177,9 @@ class JavaProjectScanner:
     # ------------------------------------------------------------------
     def extract_pairs(self) -> List[Dict]:
         """
-        Matches test methods to focal methods and returns a list of pair dicts.
+        Matches test methods to focal methods and groups them by (test_class, focal_method).
         """
-        pairs: List[Dict] = []
+        grouped_pairs: Dict[Tuple[str, str], Dict] = {}
 
         for test_class_name, test_info in self._test_classes.items():
             # Guess the focal class name by stripping Test/Tests suffix
@@ -203,20 +209,25 @@ class JavaProjectScanner:
                 focal_method_ast = focal_info["methods"][focal_method_name]
                 focal_code = _extract_method_source(focal_info["content"], focal_method_ast)
 
-                pairs.append(
-                    {
+                group_key = (test_class_name, focal_method_name)
+                if group_key not in grouped_pairs:
+                    grouped_pairs[group_key] = {
                         "test_class": test_class_name,
-                        "test_method": method_name,
-                        "test_file_path": str(test_info["file_path"]),
-                        "test_code": test_code,
                         "focal_class": focal_name,
                         "focal_method": focal_method_name,
+                        "test_file_path": str(test_info["file_path"]),
                         "focal_file_path": str(focal_info["file_path"]),
                         "focal_code": focal_code,
+                        "test_imports": test_info.get("imports", []),
+                        "test_methods": []
                     }
-                )
 
-        return pairs
+                grouped_pairs[group_key]["test_methods"].append({
+                    "test_method": method_name,
+                    "test_code": test_code
+                })
+
+        return list(grouped_pairs.values())
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -250,14 +261,32 @@ class JavaProjectScanner:
                 # Keep all methods; test-vs-focal filtering happens at pair extraction
                 methods[method.name] = method
 
+            target = self._test_classes if is_test else self._main_classes
+            
+            # Extract package and imports
+            imports = []
+            if tree.package:
+                imports.append(f"package {tree.package.name};")
+                
+            if tree.imports:
+                for imp in tree.imports:
+                    import_str = "import "
+                    if imp.static:
+                        import_str += "static "
+                    import_str += imp.path
+                    if imp.wildcard:
+                        import_str += ".*"
+                    import_str += ";"
+                    imports.append(import_str)
+
             info = {
                 "name": class_decl.name,
                 "file_path": path,
                 "content": content,
                 "methods": methods,
+                "imports": imports,
             }
 
-            target = self._test_classes if is_test else self._main_classes
             target[class_decl.name] = info
 
 

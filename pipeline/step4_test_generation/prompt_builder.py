@@ -60,7 +60,7 @@ def get_project_dependencies(project_root: Path) -> Dict[str, str]:
         
     return deps
 
-def build_prompt(intent_record: Dict[str, Any], similar_tests: List[str] = None, project_root: Path = None) -> str:
+def build_prompt(intent_record: Dict[str, Any], similar_tests: List[str] = None, project_root: Path = None, test_imports: List[str] = None) -> str:
     """
     Builds a complete and correct context prompt for the LLM to generate a test case.
     
@@ -112,6 +112,15 @@ def build_prompt(intent_record: Dict[str, Any], similar_tests: List[str] = None,
 
     prompt.append("Ensure the generated code is syntactically correct, imports necessary dependencies, and focuses purely on the requested intent.")
     prompt.append("")
+    
+    # Optional: hint from actual test imports
+    if test_imports:
+        prompt.append("### Recommended Imports")
+        prompt.append("These imports were used in similar test cases and may be highly relevant:")
+        prompt.append("```java")
+        prompt.append("\n".join(test_imports))
+        prompt.append("```")
+        prompt.append("")
     
     # 2. Add Code Context
     prompt.append(f"### Code Context: {focal_class}.{focal_method}")

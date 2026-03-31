@@ -241,12 +241,16 @@ class MethodCodeResolver:
         downstream_calls: list,   # List[str]  (method labels)
         data_reads:      list,    # List[DataDependency]
         data_writes:     list,    # List[DataDependency]
+        test_imports:    list = None, # List[str] test imports
     ) -> "ContextCode":
         """
         Convenience method: resolves everything and returns a ContextCode.
         Imports ContextCode locally to avoid circular imports at module level.
         """
         from .models import ContextCode
+        
+        if test_imports is None:
+            test_imports = []
 
         # ── Related method codes ──────────────────────────────────────
         related: Dict[str, str] = {}
@@ -287,6 +291,7 @@ class MethodCodeResolver:
             related_method_codes = related,
             field_definitions    = fields,
             focal_class_imports  = imports,
+            test_imports         = test_imports,
         )
 
     # ------------------------------------------------------------------

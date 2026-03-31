@@ -337,6 +337,7 @@ class ContextCode:
     related_method_codes: dict   # str → str
     field_definitions:    dict   # str → str
     focal_class_imports:  str    # raw import block (may be empty)
+    test_imports:         list   # list of import strings from test class
 
     def to_dict(self) -> dict:
         return {
@@ -344,6 +345,7 @@ class ContextCode:
             "related_method_codes": self.related_method_codes,
             "field_definitions":    self.field_definitions,
             "focal_class_imports":  self.focal_class_imports,
+            "test_imports":         self.test_imports,
         }
 
 
